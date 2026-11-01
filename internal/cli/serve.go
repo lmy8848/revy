@@ -60,7 +60,7 @@ var serveCmd = &cobra.Command{
 
 			artifact, err := RunReviewForWithEvents(rootDir, strict, func(ev facts.ProgressEvent) {
 				data, _ := json.Marshal(ev)
-				fmt.Fprintf(w, "data: %s\n\n", data)
+				_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 				if canFlush {
 					flusher.Flush()
 				}
@@ -78,7 +78,7 @@ var serveCmd = &cobra.Command{
 				final["report"] = artifact.ReportPath
 			}
 			data, _ := json.Marshal(final)
-			fmt.Fprintf(w, "event: final\ndata: %s\n\n", data)
+			_, _ = fmt.Fprintf(w, "event: final\ndata: %s\n\n", data)
 			if canFlush {
 				flusher.Flush()
 			}
