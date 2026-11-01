@@ -34,7 +34,7 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 }
 
-type runResult struct {
+type ReviewResult struct {
 	Facts        facts.Facts     `json:"facts"`
 	Results      []policy.Result `json:"policies"`
 	Passed       bool            `json:"passed"`
@@ -78,7 +78,7 @@ func runReview(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func artifactToRun(a runResult) report.Run {
+func artifactToRun(a ReviewResult) report.Run {
 	return report.Run{
 		StartedAt:    mustTime(a.StartedAt),
 		DurationMS:   a.DurationMS,
@@ -99,7 +99,7 @@ func mustTime(s string) time.Time {
 }
 
 // RunReviewFor 对指定项目执行完整审查并落工件（serve/桌面端/CLI 共用）。
-func RunReviewFor(root string, strict bool) (runResult, error) {
+func RunReviewFor(root string, strict bool) (ReviewResult, error) {
 	start := time.Now()
 	cfg := config.Load(root)
 
@@ -126,11 +126,11 @@ func RunReviewFor(root string, strict bool) (runResult, error) {
 	// ── 策略加载与求值 ──
 	preset, err := policy.Load(mustPresetDir())
 	if err != nil {
-		return runResult{}, err
+		return ReviewResult{}, err
 	}
 	projectPolicies, err := policy.Load(filepath.Join(root, ".review", "policies"))
 	if err != nil {
-		return runResult{}, err
+		return ReviewResult{}, err
 	}
 	all := append(append([]policy.Policy{}, preset...), projectPolicies...)
 
@@ -178,7 +178,7 @@ func RunReviewFor(root string, strict bool) (runResult, error) {
 	_ = os.MkdirAll(runsDir, 0o755)
 	prev, _ := loadPrevFailing(runsDir, start)
 
-	artifact := runResult{
+	artifact := ReviewResult{
 		Facts: f, Results: results, Passed: run.Passed,
 		Fail: fail, Warn: warn, Pass: pass,
 		DurationMS: run.DurationMS, StartedAt: run.StartedAt.Format(time.RFC3339),
@@ -205,7 +205,7 @@ func RunReviewFor(root string, strict bool) (runResult, error) {
 }
 
 // trendFrom 对比上次工件的失败集合：新增 / 已解决。
-func trendFrom(prev prevFailingInfo, artifact runResult) report.Trend {
+func trendFrom(prev prevFailingInfo, artifact ReviewResult) report.Trend {
 	t := report.Trend{New: []string{}, Resolved: []string{}}
 	curFailing := map[string]struct{}{}
 	for _, res := range artifact.Results {
@@ -260,7 +260,7 @@ func loadPrevFailing(runsDir string, before time.Time) (prevFailingInfo, string)
 	if err != nil {
 		return empty, latest
 	}
-	var art runResult
+	var art ReviewResult
 	if err := json.Unmarshal(data, &art); err != nil {
 		return empty, latest
 	}

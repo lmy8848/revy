@@ -147,7 +147,7 @@ var reportCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		var art runResult
+		var art ReviewResult
 		if err := json.Unmarshal(data, &art); err != nil {
 			return fmt.Errorf("解析工件: %w", err)
 		}

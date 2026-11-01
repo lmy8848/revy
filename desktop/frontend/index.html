@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>revy</title>
+<style>
+  :root { --bg:#0f1420; --card:#171e2e; --line:#25304a; --fg:#dde5f4; --muted:#7d8aa5;
+          --green:#4ade80; --red:#f87171; --yellow:#facc15; --accent:#7aa2f7; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:28px; background:var(--bg); color:var(--fg);
+         font-family:"Cascadia Code",Consolas,monospace; -webkit-user-select:none; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .muted { color:var(--muted); font-size:12px; }
+  .bar { display:flex; gap:10px; margin:18px 0; }
+  input, button { background:var(--card); color:var(--fg); border:1px solid var(--line);
+                  border-radius:8px; padding:10px 14px; font-family:inherit; font-size:14px; outline:none; }
+  input { flex:1; }
+  button { cursor:pointer; } button:hover { border-color:var(--accent); }
+  button:disabled { opacity:.5; cursor:wait; }
+  .verdict { font-size:18px; font-weight:700; margin:18px 0; min-height:24px; }
+  .verdict.pass { color:var(--green); } .verdict.fail { color:var(--red); }
+  table { width:100%; border-collapse:collapse; margin-top:12px; }
+  td, th { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; font-size:13px; }
+  th { color:var(--muted); font-weight:400; }
+  .ok { color:var(--green); } .no { color:var(--red); } .wr { color:var(--yellow); }
+  .spin { display:inline-block; width:14px; height:14px; border:2px solid var(--line);
+          border-top-color:var(--accent); border-radius:50%; animation:sp 0.8s linear infinite; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<h1>revy 体检台</h1>
+<div class="muted">策略即代码的项目审查 · 输入项目根目录后运行</div>
+
+<div class="bar">
+  <input id="project" value="F:/Project/code/EasyServer">
+  <button id="runBtn" onclick="runReview()">运行审查</button>
+</div>
+
+<div class="verdict" id="verdict"></div>
+<table id="results"></table>
+
+<h1 style="font-size:16px;margin-top:28px;">历史运行</h1>
+<table id="runs"></table>
+
+<script>
+let root = '';
+
+async function runReview() {
+  root = document.getElementById('project').value.trim();
+  if (!root) return;
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> 审查中…（可能数分钟）';
+  document.getElementById('verdict').textContent = '';
+  try {
+    const d = await window.go.main.App.RunReview(root, false);
+    const v = document.getElementById('verdict');
+    v.className = 'verdict ' + (d.passed ? 'pass' : 'fail');
+    v.textContent = (d.passed ? '通过' : '未通过') + ' · ' + d.pass + ' pass / ' + d.warn + ' warn / ' + d.fail + ' fail';
+    const t = document.getElementById('results');
+    t.innerHTML = '<tr><th>结果</th><th>维度</th><th>策略</th><th>说明</th></tr>';
+    for (const r of d.policies) {
+      const cls = r.passed ? 'ok' : (r.policy.severity === 'error' ? 'no' : 'wr');
+      t.innerHTML += '<tr><td class="' + cls + '">' + (r.passed ? '✔' : '✘') + '</td><td>' + r.policy.dimension +
+        '</td><td>' + r.policy.id + '</td><td>' + (r.error ? '表达式错误: ' + r.error : r.policy.message) + '</td></tr>';
+    }
+    loadRuns();
+  } catch (e) {
+    document.getElementById('verdict').className = 'verdict fail';
+    document.getElementById('verdict').textContent = '运行错误: ' + e;
+  } finally {
+    btn.disabled = false; btn.textContent = '运行审查';
+  }
+}
+
+async function loadRuns() {
+  if (!root) return;
+  const list = await window.go.main.App.ListRuns(root);
+  const t = document.getElementById('runs');
+  t.innerHTML = '<tr><th>工件</th></tr>';
+  for (const f of list) {
+    t.innerHTML += '<tr><td>' + f + '</td></tr>';
+  }
+}
+
+document.getElementById('project').addEventListener('keydown', e => { if (e.key === 'Enter') runReview(); });
+</script>
+</body>
+</html>
