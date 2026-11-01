@@ -21,11 +21,11 @@ const (
 
 // Policy 单条策略：对 facts 的一个布尔判定 + 语义说明。
 type Policy struct {
-	ID        string   `yaml:"id"`
-	Dimension string   `yaml:"dimension"` // ci / security / standards / tests / architecture / deps / docs
-	Severity  Severity `yaml:"severity"`
-	Expr      string   `yaml:"expr"`    // CEL 表达式，值为 bool
-	Message   string   `yaml:"message"` // 失败时展示的说明
+	ID        string   `yaml:"id" json:"id"`
+	Dimension string   `yaml:"dimension" json:"dimension"` // ci / security / standards / tests / architecture / deps / docs
+	Severity  Severity `yaml:"severity" json:"severity"`
+	Expr      string   `yaml:"expr" json:"expr"`       // CEL 表达式，值为 bool
+	Message   string   `yaml:"message" json:"message"` // 失败时展示的说明
 }
 
 // Load 从目录加载全部 *.yaml / *.yml 策略文件，按 ID 去重（后加载者覆盖）。
@@ -131,7 +131,7 @@ func Evaluate(policies []Policy, facts map[string]any) []Result {
 
 // Result 单条策略的求值结果。
 type Result struct {
-	Policy Policy
-	Passed bool
-	Error  string // 求值错误（表达式异常），视同失败
+	Policy Policy `json:"policy"`
+	Passed bool   `json:"passed"`
+	Error  string `json:"error,omitempty"` // 求值错误（表达式异常），视同失败
 }
