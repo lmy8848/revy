@@ -17,6 +17,11 @@
   button { cursor:pointer; } button:hover { border-color:var(--accent); }
   button:disabled { opacity:.5; cursor:wait; }
   .verdict { font-size:18px; font-weight:700; margin:16px 0; }
+  #progress { margin-top:12px; }
+  #progress .prow { display:flex; gap:10px; padding:6px 10px; border-bottom:1px solid var(--line);
+                    font-size:13px; align-items:center; }
+  #progress .mark { width:16px; text-align:center; color:var(--green); }
+  .tag.ok { background:rgba(74,222,128,.15); color:var(--green); }
   .verdict.pass { color:var(--green); } .verdict.fail { color:var(--red); }
   table { width:100%; border-collapse:collapse; margin-top:12px; }
   td, th { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; font-size:13px; }
@@ -32,8 +37,10 @@
 
 <div class="bar">
   <input id="project" placeholder="项目根目录（回车触发审查）">
+  <label style="align-self:center;font-size:13px;"><input type="checkbox" id="strict" style="width:auto"> strict</label>
   <button id="runBtn" onclick="runReview()">运行审查</button>
 </div>
+<div id="progress"></div>
 <div class="muted">提示：审查目标项目的工具链（go / flutter / node）需在 revy 的 PATH 中</div>
 
 <div id="verdict"></div>
@@ -78,22 +85,41 @@ function render(d) {
   }
 }
 
-async function runReview() {
+function runReview() {
   const btn = document.getElementById('runBtn');
-  btn.disabled = true; btn.textContent = '审查中…（外部工具可能需要几分钟）';
-  const rootDir = document.getElementById('project').value.trim();
-  try {
-    const r = await fetch('/api/run', { method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ root: rootDir }) });
-    const d = await r.json();
-    if (d.error) { alert('运行错误: ' + d.error); return; }
+  btn.disabled = true;
+  const rootDir = document.getElementById('project').value.trim() || root;
+  document.getElementById('verdict').textContent = '';
+  document.getElementById('results').innerHTML = '';
+  const prog = document.getElementById('progress');
+  prog.innerHTML = '';
+
+  const es = new EventSource('/api/run/stream?root=' + encodeURIComponent(rootDir) +
+                             '&strict=' + document.getElementById('strict').checked);
+  es.onmessage = e => {
+    const ev = JSON.parse(e.data);
+    const row = document.createElement('div');
+    row.className = 'prow';
+    row.innerHTML = '<span class="mark">✔</span><span>' + ev.name + '</span>';
+    prog.appendChild(row);
+  };
+  es.addEventListener('final', e => {
+    es.close();
+    btn.disabled = false; btn.textContent = '运行审查';
+    const d = JSON.parse(e.data);
+    if (d.error) {
+      document.getElementById('verdict').className = 'verdict fail';
+      document.getElementById('verdict').textContent = '运行错误: ' + d.error;
+      return;
+    }
     render(d);
     loadRuns();
-    document.getElementById('report').src = '/report/' + (d.report_path || '').split(/[\\/]/).pop();
-  } finally {
-    btn.disabled = false; btn.textContent = '运行审查';
-  }
+    if (d.report) document.getElementById('report').src = '/report/' + d.report.split(/[\\/]/).pop();
+  });
+  es.onerror = () => {
+    es.close();
+    btn.disabled = false; btn.textContent = '运行审查（连接中断，重试）';
+  };
 }
 
 document.getElementById('project').addEventListener('keydown', e => { if (e.key === 'Enter') runReview(); });

@@ -100,7 +100,18 @@ func mustTime(s string) time.Time {
 
 // RunReviewFor 对指定项目执行完整审查并落工件（serve/桌面端/CLI 共用）。
 func RunReviewFor(root string, strict bool) (ReviewResult, error) {
+	return RunReviewForWithEvents(root, strict, nil)
+}
+
+// RunReviewForWithEvents 同上，onEvent 非空时逐项推送进度事件（nil 安全）。
+func RunReviewForWithEvents(root string, strict bool, onEvent func(facts.ProgressEvent)) (ReviewResult, error) {
+	emit := func(stage, name, state, msg string) {
+		if onEvent != nil {
+			onEvent(facts.ProgressEvent{Stage: stage, Name: name, State: state, Message: msg})
+		}
+	}
 	start := time.Now()
+	emit("collect", "开始采集", "running", "")
 	cfg := config.Load(root)
 
 	// ── 采集 facts ──
@@ -114,10 +125,18 @@ func RunReviewFor(root string, strict bool) (ReviewResult, error) {
 
 	goCtx, gcancel := context.WithTimeout(ctx, 60*time.Second)
 	defer gcancel()
+	emit("collect", "Go 检查（build/vet/test/lint）", "running", "")
 	collect.Go(ctx, root, cfg, &f)
+	emit("collect", "Go 检查（build/vet/test/lint）", "ok", "")
+	emit("collect", "Web 检查（typecheck/lint/test）", "running", "")
 	collect.WebTS(ctx, root, cfg, &f)
+	emit("collect", "Web 检查（typecheck/lint/test）", "ok", "")
+	emit("collect", "Flutter 检查（analyze/test）", "running", "")
 	collect.Flutter(ctx, root, cfg, &f)
+	emit("collect", "Flutter 检查（analyze/test）", "ok", "")
+	emit("collect", "GitHub 采集（CI/安全告警）", "running", "")
 	ghcollect.Collect(goCtx, root, cfg, &f)
+	emit("collect", "GitHub 采集（CI/安全告警）", "ok", "")
 
 	if fileExists(filepath.Join(root, "README.md")) || fileExists(filepath.Join(root, "README_zh.md")) {
 		f.Docs.Readme = true
@@ -163,6 +182,7 @@ func RunReviewFor(root string, strict bool) (ReviewResult, error) {
 		}
 	}
 
+	emit("policy", "策略判定", "ok", fmt.Sprintf("%d pass · %d warn · %d fail", pass, warn, fail))
 	run := report.Run{
 		StartedAt:    start,
 		DurationMS:   time.Since(start).Milliseconds(),

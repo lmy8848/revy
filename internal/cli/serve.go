@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"revy/internal/facts"
 	"revy/internal/report"
 )
 
@@ -42,6 +43,44 @@ var serveCmd = &cobra.Command{
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			_, _ = fmt.Fprint(w, serveIndex)
+		})
+
+		// 实时审查（SSE 流式推送进度，前端逐条渲染）
+		mux.HandleFunc("/api/run/stream", func(w http.ResponseWriter, r *http.Request) {
+			flusher, canFlush := w.(http.Flusher)
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			if canFlush {
+				w.WriteHeader(http.StatusOK)
+				flusher.Flush()
+			}
+			rootDir := r.URL.Query().Get("root")
+			strict := r.URL.Query().Get("strict") == "true"
+
+			artifact, err := RunReviewForWithEvents(rootDir, strict, func(ev facts.ProgressEvent) {
+				data, _ := json.Marshal(ev)
+				fmt.Fprintf(w, "data: %s\n\n", data)
+				if canFlush {
+					flusher.Flush()
+				}
+			})
+
+			final := map[string]any{"ok": err == nil}
+			if err != nil {
+				final["error"] = err.Error()
+			} else {
+				final["passed"] = artifact.Passed
+				final["pass"], final["warn"], final["fail"] = artifact.Pass, artifact.Warn, artifact.Fail
+				final["policies"] = artifact.Results
+				final["trend"] = artifact.Trend
+				final["artifact"] = artifact.ArtifactPath
+				final["report"] = artifact.ReportPath
+			}
+			data, _ := json.Marshal(final)
+			fmt.Fprintf(w, "event: final\ndata: %s\n\n", data)
+			if canFlush {
+				flusher.Flush()
+			}
 		})
 
 		// 触发审查（同步，前端 loading 态）

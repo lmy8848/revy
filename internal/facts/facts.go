@@ -43,6 +43,15 @@ type GoFacts struct {
 	Routes      []RouteFacts `json:"routes"`
 }
 
+// ProgressEvent 审查过程的实时进度事件（SSE/桌面端推送用）。
+type ProgressEvent struct {
+	Stage     string `json:"stage"` // check / collect / policy / done
+	Name      string `json:"name"`  // 检查名或阶段名
+	State     string `json:"state"` // running / ok / fail / skip
+	Message   string `json:"message,omitempty"`
+	ElapsedMS int64  `json:"elapsed_ms,omitempty"`
+}
+
 // RouteFacts 从 Go 源码扫描到的 HTTP 路由注册（domain 为文件所在
 // internal/<第一段>/... 的归属）。
 type RouteFacts struct {
