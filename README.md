@@ -61,11 +61,33 @@ checks:
 - Windows 宿主审查 Linux 项目：build/vet 交叉编译，test 显式跳过
   （`cross-platform`），真 Linux 测试由 CI 采集器（权威）或后续的 ssh/vm 执行器承接
 
+## MCP（AI 智能体接入）
+
+`revy mcp` 以 stdio 运行 MCP 服务器，把审查能力暴露为标准工具。
+以 ZCode 为例，在 MCP 配置中加入：
+
+```json
+{ "revy": { "command": "revy", "args": ["mcp"] } }
+```
+
+暴露的工具：
+
+| 工具 | 说明 |
+|---|---|
+| `run_review` | 执行完整审查（同步，返回统计/失败明细/趋势/工件路径） |
+| `get_facts` | 只采集 facts（lint/build/test/CI/安全/依赖图/路由表） |
+| `list_runs` | 列出历史审查工件 |
+| `get_artifact` | 读取指定工件的完整内容 |
+
+智能体拿到 `run_review` 的结构化结果后，可以直接读失败明细并修复代码——
+审查闭环不再需要人工转述。
+
 ## 路线图
 
-- v0.2 架构图（Mermaid）+ 运行工件回放 + `vm` 执行器（内置 QEMU 微型 Linux 沙箱）
-- v0.3 本地实时 UI（SSE 同步 CLI 运行）
-- v0.4 MCP server（智能体原生接入）
+- ~~v0.1 facts 采集 + CEL 策略 + 三视图输出~~ ✅
+- ~~v0.2 架构图（Mermaid）/ 运行工件与趋势 / serve 仪表盘~~ ✅
+- v0.3 `vm` 执行器（内置 QEMU 微型 Linux 沙箱）+ Wails 桌面壳
+- v0.4 SSE 实时 UI / 策略包市场
 
 ## 许可
 
