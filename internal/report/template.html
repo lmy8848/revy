@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>revy 审查报告</title>
+<style>
+  :root { --bg:#0f1420; --card:#171e2e; --line:#25304a; --fg:#dde5f4; --muted:#7d8aa5;
+          --green:#4ade80; --red:#f87171; --yellow:#facc15; --accent:#7aa2f7; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:32px; background:var(--bg); color:var(--fg);
+         font-family:"Cascadia Code","JetBrains Mono",Consolas,monospace; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .meta { color:var(--muted); font-size:12px; margin-bottom:20px; }
+  .verdict { display:inline-block; padding:6px 14px; border-radius:8px; font-weight:700; margin-bottom:24px; }
+  .verdict.pass { background:rgba(74,222,128,.15); color:var(--green); }
+  .verdict.fail { background:rgba(248,113,113,.15); color:var(--red); }
+  .dim { margin-bottom:24px; }
+  .dim h2 { font-size:13px; color:var(--accent); text-transform:uppercase;
+            letter-spacing:1px; margin:0 0 8px; }
+  .row { display:flex; gap:10px; padding:7px 10px; border:1px solid var(--line);
+         border-radius:8px; margin-bottom:6px; background:var(--card); align-items:baseline; }
+  .mark { width:16px; text-align:center; flex:none; }
+  .mark.ok { color:var(--green); } .mark.fail { color:var(--red); } .mark.warn { color:var(--yellow); }
+  .id { min-width:280px; }
+  .msg { color:var(--muted); font-size:12px; }
+  .tag { font-size:10px; padding:1px 6px; border-radius:4px; margin-left:auto; flex:none; }
+  .tag.err { background:rgba(248,113,113,.15); color:var(--red); }
+  .tag.warn { background:rgba(250,204,21,.15); color:var(--yellow); }
+  .footer { color:var(--muted); font-size:11px; margin-top:28px; }
+</style>
+</head>
+<body>
+<h1>revy 审查报告</h1>
+<div class="meta">{{ .Meta }}</div>
+<div class="verdict {{ .VerdictClass }}">{{ .Verdict }}</div>
+
+{{ range .Dims }}
+<div class="dim">
+  <h2>{{ .Name }}</h2>
+  {{ range .Rows }}
+  <div class="row">
+    <span class="mark {{ .SevClass }}">{{ .Mark }}</span>
+    <span class="id">{{ .ID }}</span>
+    <span class="msg">{{ .Msg }}</span>
+    {{ if .Tag }}<span class="tag {{ .TagClass }}">{{ .Tag }}</span>{{ end }}
+  </div>
+  {{ end }}
+</div>
+{{ end }}
+<div class="footer">由 revy 生成 · 策略即代码的项目体检台</div>
+</body>
+</html>

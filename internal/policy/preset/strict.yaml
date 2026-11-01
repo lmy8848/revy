@@ -1,0 +1,145 @@
+# revy 预置 strict 策略包：九个维度、最高标准。
+# 表达式对 facts（JSON）求值，值必须为 bool；顶层段始终存在。
+# 非适用维度用 found=false 短路通过。
+
+policies:
+  # ── CI 健康 ──
+  - id: ci-master-latest-success
+    dimension: ci
+    severity: error
+    expr: "facts['github']['found'] == false || facts['github']['actions']['latest']['conclusion'] == 'success'"
+    message: "默认分支最新 CI 未通过——合并前保持主干绿色是最高标准的底线"
+
+  - id: ci-recent-success-ratio
+    dimension: ci
+    severity: warn
+    expr: "facts['github']['found'] == false || facts['github']['actions']['recent_total'] == 0 || facts['github']['actions']['recent_success_ratio'] >= 0.6"
+    message: "最近 CI 成功率低于 60%，主干稳定性有问题"
+
+  # ── 安全 ──
+  - id: sec-code-scanning-errors
+    dimension: security
+    severity: error
+    expr: "facts['github']['found'] == false || (facts['github']['code_scanning']['open_critical'] == 0 && facts['github']['code_scanning']['open_high'] == 0)"
+    message: "存在未处理的 code scanning error/high 告警"
+
+  - id: sec-code-scanning-total
+    dimension: security
+    severity: warn
+    expr: "facts['github']['found'] == false || facts['github']['code_scanning']['open_total'] <= 10"
+    message: "code scanning 开放告警过多（>10），即使已驳回也说明扫描器在持续发现新点"
+
+  - id: sec-dependabot-critical
+    dimension: security
+    severity: error
+    expr: "facts['github']['found'] == false || facts['github']['dependabot']['open_critical'] == 0"
+    message: "存在 critical 级依赖漏洞未修复"
+
+  - id: sec-dependabot-high
+    dimension: security
+    severity: error
+    expr: "facts['github']['found'] == false || facts['github']['dependabot']['open_high'] == 0"
+    message: "存在 high 级依赖漏洞未修复"
+
+  - id: sec-dependabot-moderate-budget
+    dimension: security
+    severity: warn
+    expr: "facts['github']['found'] == false || facts['github']['dependabot']['open_moderate'] <= 5"
+    message: "moderate 级依赖漏洞积压超过 5 条"
+
+  - id: sec-secret-scanning-clean
+    dimension: security
+    severity: error
+    expr: "facts['github']['found'] == false || facts['github']['secret_scanning']['open_total'] == 0"
+    message: "存在未处理的秘密泄漏告警"
+
+  # ── 代码规范（go）──
+  - id: go-build-ok
+    dimension: standards
+    severity: error
+    expr: "facts['go']['found'] == false || (facts['go']['build']['ok'] && !facts['go']['build']['skipped'])"
+    message: "go build 失败或 go 不在审查环境 PATH 中"
+
+  - id: go-vet-ok
+    dimension: standards
+    severity: error
+    expr: "facts['go']['found'] == false || (facts['go']['vet']['ok'] && !facts['go']['vet']['skipped'])"
+    message: "go vet 存在告警或未执行"
+
+  - id: go-fmt-clean
+    dimension: standards
+    severity: warn
+    expr: "facts['go']['found'] == false || facts['go']['fmt']['ok']"
+    message: "存在未 gofmt 格式化的文件"
+
+  - id: go-lint-clean
+    dimension: standards
+    severity: warn
+    expr: "facts['go']['found'] == false || facts['go']['lint']['skipped'] || facts['go']['lint']['ok']"
+    message: "golangci-lint 存在告警（或工具未安装被跳过——装上以启用此标准）"
+
+  # ── 测试（go）──
+  - id: go-test-pass
+    dimension: tests
+    severity: error
+    expr: "facts['go']['found'] == false || (facts['go']['test']['ok'] && !facts['go']['test']['skipped']) || (facts['go']['test']['skipped'] && facts['go']['test']['skip_reason'].matches('cross-platform'))"
+    message: "go test 存在失败或未执行（跨平台跳过除外，需由 CI/远端承接）"
+
+  # ── 代码规范 / 测试（web-ts）──
+  - id: web-typecheck-ok
+    dimension: standards
+    severity: error
+    expr: "facts['web_ts']['found'] == false || facts['web_ts']['typecheck']['skipped'] || facts['web_ts']['typecheck']['ok']"
+    message: "前端类型检查失败或缺少 typecheck script（最高标准要求配置它）"
+
+  - id: web-lint-ok
+    dimension: standards
+    severity: warn
+    expr: "facts['web_ts']['found'] == false || facts['web_ts']['lint']['skipped'] || facts['web_ts']['lint']['ok']"
+    message: "前端 lint 失败或缺少 lint script"
+
+  - id: web-test-ok
+    dimension: tests
+    severity: error
+    expr: "facts['web_ts']['found'] == false || facts['web_ts']['test']['skipped'] || facts['web_ts']['test']['ok']"
+    message: "前端测试失败或缺少 test script"
+
+  # ── 代码规范 / 测试（flutter）──
+  - id: flutter-analyze-ok
+    dimension: standards
+    severity: error
+    expr: "facts['flutter']['found'] == false || facts['flutter']['analyze']['skipped'] || facts['flutter']['analyze']['ok']"
+    message: "flutter analyze 存在问题"
+
+  - id: flutter-test-ok
+    dimension: tests
+    severity: error
+    expr: "facts['flutter']['found'] == false || facts['flutter']['test']['skipped'] || facts['flutter']['test']['ok']"
+    message: "flutter test 存在失败"
+
+  # ── 架构纪律（基于 import 依赖图）──
+  - id: arch-domain-no-infra
+    dimension: architecture
+    severity: error
+    expr: "facts['go']['found'] == false || !facts['go']['import_graph']['edges'].exists(e, e['from'].startsWith('domain/') && (e['to'].startsWith('infra/') || e['to'].startsWith('api/')))"
+    message: "领域层禁止依赖 infra/api 层——分层方向被破坏"
+
+  - id: arch-domain-no-cross-import
+    dimension: architecture
+    severity: warn
+    expr: "facts['go']['found'] == false || !facts['go']['import_graph']['edges'].exists(e, e['from'].startsWith('domain/') && e['to'].startsWith('domain/') && e['from'] != e['to'])"
+    message: "领域之间存在横向 import——跨域协作应走接口定义方而非直接依赖"
+
+  # ── 依赖健康 ──
+  - id: go-version-floor
+    dimension: deps
+    severity: warn
+    expr: "facts['go']['found'] == false || facts['go']['go_version'] >= '1.24'"
+    message: "go.mod 声明的 Go 版本低于 1.24，缺少近两年的语言与标准库修复"
+
+  # ── 文档 ──
+  - id: docs-readme-exists
+    dimension: docs
+    severity: warn
+    expr: "facts['docs']['readme']"
+    message: "项目根缺少 README"
