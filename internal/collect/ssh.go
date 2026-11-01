@@ -49,7 +49,7 @@ func (e *SSHExecutor) Sync(ctx context.Context, root string) (string, error) {
 		return "", err
 	}
 	if err := extract.Start(); err != nil {
-		tar.Process.Kill()
+		_ = tar.Process.Kill()
 		return "", err
 	}
 	if err := extract.Wait(); err != nil {

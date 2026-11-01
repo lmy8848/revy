@@ -54,6 +54,7 @@ var serveCmd = &cobra.Command{
 				w.WriteHeader(http.StatusOK)
 				flusher.Flush()
 			}
+			_ = r.Body
 			rootDir := r.URL.Query().Get("root")
 			strict := r.URL.Query().Get("strict") == "true"
 
