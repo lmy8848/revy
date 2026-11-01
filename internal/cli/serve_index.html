@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>revy 仪表盘</title>
+<style>
+  :root { --bg:#0f1420; --card:#171e2e; --line:#25304a; --fg:#dde5f4; --muted:#7d8aa5;
+          --green:#4ade80; --red:#f87171; --yellow:#facc15; --accent:#7aa2f7; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px; background:var(--bg); color:var(--fg);
+         font-family:"Cascadia Code",Consolas,monospace; }
+  h1 { font-size:20px; } .muted { color:var(--muted); font-size:12px; }
+  .bar { display:flex; gap:10px; margin:16px 0; }
+  input, button { background:var(--card); color:var(--fg); border:1px solid var(--line);
+                  border-radius:8px; padding:10px 14px; font-family:inherit; font-size:14px; }
+  input { flex:1; }
+  button { cursor:pointer; } button:hover { border-color:var(--accent); }
+  button:disabled { opacity:.5; cursor:wait; }
+  .verdict { font-size:18px; font-weight:700; margin:16px 0; }
+  .verdict.pass { color:var(--green); } .verdict.fail { color:var(--red); }
+  table { width:100%; border-collapse:collapse; margin-top:12px; }
+  td, th { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; font-size:13px; }
+  .ok { color:var(--green); } .no { color:var(--red); } .wr { color:var(--yellow); }
+  a { color:var(--accent); }
+  iframe { width:100%; height:70vh; border:1px solid var(--line); border-radius:8px;
+           background:#fff; margin-top:12px; }
+</style>
+</head>
+<body>
+<h1>revy 仪表盘</h1>
+<div class="muted">策略即代码的项目体检台 · <span id="root"></span></div>
+
+<div class="bar">
+  <input id="project" placeholder="项目根目录（回车触发审查）">
+  <button id="runBtn" onclick="runReview()">运行审查</button>
+</div>
+<div class="muted">提示：审查目标项目的工具链（go / flutter / node）需在 revy 的 PATH 中</div>
+
+<div id="verdict"></div>
+<table id="results"></table>
+
+<h1 style="font-size:16px;margin-top:32px;">HTML 报告</h1>
+<iframe id="report" src=""></iframe>
+
+<h1 style="font-size:16px;margin-top:32px;">历史运行</h1>
+<table id="runs"></table>
+
+<script>
+const root = new URLSearchParams(location.search).get('root') || '';
+document.getElementById('root').textContent = root || '(当前目录)';
+document.getElementById('project').value = root;
+
+async function loadRuns() {
+  const r = await fetch('/api/runs?root=' + encodeURIComponent(root));
+  const list = await r.json();
+  const t = document.getElementById('runs');
+  t.innerHTML = '<tr><th>文件</th><th>时间</th></tr>';
+  for (const item of list) {
+    t.innerHTML += '<tr><td><a href="#" onclick="openArtifact(\'' + item.file + '\')">' + item.file + '</a></td><td>' + item.time.replace('T',' ').slice(0,19) + '</td></tr>';
+  }
+}
+
+async function openArtifact(file) {
+  const r = await fetch('/api/artifact?file=' + encodeURIComponent(file) + '&root=' + encodeURIComponent(root));
+  render(JSON.parse(await r.json ? await r.json() : await r.text()));
+}
+
+function render(d) {
+  const v = document.getElementById('verdict');
+  v.className = 'verdict ' + (d.passed ? 'pass' : 'fail');
+  v.textContent = (d.passed ? '通过' : '未通过') + ' · ' + d.pass + ' pass / ' + d.warn + ' warn / ' + d.fail + ' fail';
+  const t = document.getElementById('results');
+  t.innerHTML = '<tr><th>结果</th><th>维度</th><th>策略</th><th>说明</th></tr>';
+  for (const r of d.policies) {
+    const cls = r.passed ? 'ok' : (r.policy.severity === 'error' ? 'no' : 'wr');
+    t.innerHTML += '<tr><td class="' + cls + '">' + (r.passed ? '✔' : '✘') + '</td><td>' + r.policy.dimension +
+      '</td><td>' + r.policy.id + '</td><td>' + (r.error ? '表达式错误: ' + r.error : r.policy.message) + '</td></tr>';
+  }
+}
+
+async function runReview() {
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true; btn.textContent = '审查中…（外部工具可能需要几分钟）';
+  const rootDir = document.getElementById('project').value.trim();
+  try {
+    const r = await fetch('/api/run', { method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ root: rootDir }) });
+    const d = await r.json();
+    if (d.error) { alert('运行错误: ' + d.error); return; }
+    render(d);
+    loadRuns();
+    document.getElementById('report').src = '/report/' + d.artifact_path.split(/[\\/]/).pop().replace('run-', 'report-');
+  } finally {
+    btn.disabled = false; btn.textContent = '运行审查';
+  }
+}
+
+document.getElementById('project').addEventListener('keydown', e => { if (e.key === 'Enter') runReview(); });
+loadRuns();
+</script>
+</body>
+</html>

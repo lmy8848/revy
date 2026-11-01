@@ -9,8 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"revy/internal/facts"
 	"revy/internal/policy"
 )
+
+//go:embed mermaid.min.js
+var mermaidJS string
 
 // Run 一次审查运行的完整结果。
 type Run struct {
@@ -115,18 +119,57 @@ type htmlDim struct {
 	Rows []htmlRow
 }
 
+type htmlRoute struct{ Method, Path string }
+type htmlRouteGroup struct {
+	Domain string
+	Routes []htmlRoute
+}
+type htmlTrend struct{ New, Resolved []string }
+
 type htmlView struct {
 	Root, Meta, Verdict, VerdictClass string
 	Fail, Warn, Pass                  int
 	Dims                              []htmlDim
+	Mermaid                           template.HTML
+	MermaidJS                         template.HTML
+	Routes                            []htmlRouteGroup
+	Trend                             *htmlTrend
 }
 
 // ViewModel 预构建 HTML 渲染视图。
 func ViewModel(r *Run) htmlView {
+	return viewModel(r, nil, nil)
+}
+
+// ViewModelWithTrend 预构建带趋势对比的视图。
+func ViewModelWithTrend(r *Run, newFailures, resolved []string) htmlView {
+	return viewModel(r, newFailures, resolved)
+}
+
+func viewModel(r *Run, newFailures, resolved []string) htmlView {
 	v := htmlView{
 		Root: r.ProjectRoot,
 		Meta: fmt.Sprintf("%s · %s · 耗时 %dms", r.ProjectRoot, r.StartedAt.Format("2006-01-02 15:04:05"), r.DurationMS),
 		Dims: []htmlDim{},
+	}
+	// 架构图（Mermaid）+ 路由表
+	if gf, ok := r.Facts.(facts.Facts); ok {
+		if mg := MermaidGraph(gf); mg != "" {
+			v.Mermaid = template.HTML(mg)
+			v.MermaidJS = template.HTML(mermaidJS)
+		}
+		last := ""
+		for _, rt := range gf.Go.Routes {
+			if rt.Domain != last {
+				v.Routes = append(v.Routes, htmlRouteGroup{Domain: rt.Domain})
+				last = rt.Domain
+			}
+			g := &v.Routes[len(v.Routes)-1]
+			g.Routes = append(g.Routes, htmlRoute{Method: rt.Method, Path: rt.Path})
+		}
+	}
+	if newFailures != nil || resolved != nil {
+		v.Trend = &htmlTrend{New: newFailures, Resolved: resolved}
 	}
 	dimIndex := map[string]int{}
 	for _, res := range r.Results {
@@ -174,14 +217,25 @@ func ViewModel(r *Run) htmlView {
 	return v
 }
 
-// HTML 渲染单文件报告（自包含样式，无外部依赖）。
+// Trend 趋势对比（与上次运行）。
+type Trend struct {
+	New      []string // 本次新增失败
+	Resolved []string // 上次失败本次已解决
+}
+
+// HTML 渲染单文件报告（无趋势）。
 func HTML(r *Run) (string, error) {
+	return HTMLWithTrend(r, nil, nil)
+}
+
+// HTMLWithTrend 渲染带趋势对比的单文件报告。
+func HTMLWithTrend(r *Run, newFailures, resolved []string) (string, error) {
 	tmpl, err := template.New("report").Parse(htmlTemplate)
 	if err != nil {
 		return "", err
 	}
 	var b strings.Builder
-	if err := tmpl.Execute(&b, ViewModel(r)); err != nil {
+	if err := tmpl.Execute(&b, ViewModelWithTrend(r, newFailures, resolved)); err != nil {
 		return "", err
 	}
 	return b.String(), nil

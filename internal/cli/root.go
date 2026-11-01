@@ -3,8 +3,11 @@ package cli
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
+
+	"revy/internal/policy"
 )
 
 var version = "dev"
@@ -31,4 +34,27 @@ func init() {
 	rootCmd.Version = version
 	rootCmd.SetVersionTemplate("revy {{.Version}}\n")
 
+}
+
+// projectRoot 解析项目根：位置参数优先，其次 -p flag，缺省当前目录。
+func projectRoot(cmd *cobra.Command, args []string) string {
+	if len(args) > 0 {
+		abs, _ := filepath.Abs(args[0])
+		return abs
+	}
+	p, _ := cmd.Flags().GetString("project")
+	abs, _ := filepath.Abs(p)
+	return abs
+}
+
+// mustPresetDir 预置策略包以 embed 提供，写进临时目录复用目录加载语义。
+func mustPresetDir() string {
+	dir, err := os.MkdirTemp("", "revy-preset-*")
+	if err != nil {
+		panic(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "strict.yaml"), []byte(policy.PresetStrict()), 0o644); err != nil {
+		panic(err)
+	}
+	return dir
 }

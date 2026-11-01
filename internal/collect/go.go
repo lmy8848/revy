@@ -51,6 +51,7 @@ func Go(ctx context.Context, root string, cfg *config.Config, f *facts.Facts) {
 	f.Go.Lint.OK, f.Go.Lint.Skipped, f.Go.Lint.Output, f.Go.Lint.DurationMS = lint.run(ctx)
 
 	f.Go.ImportGraph = goImportGraph(ctx, root)
+	f.Go.Routes = scanGoRoutes(ctx, root)
 }
 
 func gofmtDrift(ctx context.Context, root string) facts.FmtFacts {

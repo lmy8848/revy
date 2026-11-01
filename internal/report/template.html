@@ -26,6 +26,9 @@
   .tag { font-size:10px; padding:1px 6px; border-radius:4px; margin-left:auto; flex:none; }
   .tag.err { background:rgba(248,113,113,.15); color:var(--red); }
   .tag.warn { background:rgba(250,204,21,.15); color:var(--yellow); }
+  .tag.ok { background:rgba(74,222,128,.15); color:var(--green); }
+  .mermaid { background:var(--card); border:1px solid var(--line); border-radius:8px;
+             padding:16px; text-align:center; overflow-x:auto; }
   .footer { color:var(--muted); font-size:11px; margin-top:28px; }
 </style>
 </head>
@@ -33,6 +36,40 @@
 <h1>revy 审查报告</h1>
 <div class="meta">{{ .Meta }}</div>
 <div class="verdict {{ .VerdictClass }}">{{ .Verdict }}</div>
+
+{{ if .Trend }}
+<div class="dim">
+  <h2>趋势对比（与上次运行）</h2>
+  {{ if .Trend.New }}{{ range .Trend.New }}
+  <div class="row"><span class="mark fail">＋</span><span class="id">新增失败</span>
+    <span class="msg">{{ . }}</span><span class="tag err">new</span></div>{{ end }}{{ end }}
+  {{ if .Trend.Resolved }}{{ range .Trend.Resolved }}
+  <div class="row"><span class="mark ok">－</span><span class="id">已解决</span>
+    <span class="msg">{{ . }}</span><span class="tag ok">resolved</span></div>{{ end }}{{ end }}
+  {{ if and (not .Trend.New) (not .Trend.Resolved) }}
+  <div class="row"><span class="mark ok">＝</span><span class="id">无变化</span>
+    <span class="msg">与上次运行相比没有新增或解决的失败</span></div>{{ end }}
+</div>
+{{ end }}
+
+{{ if .Mermaid }}
+<div class="dim">
+  <h2>架构依赖图</h2>
+  <div class="mermaid">
+{{ .Mermaid }}
+  </div>
+</div>
+{{ end }}
+
+{{ if .Routes }}
+<div class="dim">
+  <h2>API 路由地图</h2>
+  {{ range .Routes }}
+  <div class="row"><span class="mark ok">›</span><span class="id">{{ .Domain }}</span>
+    <span class="msg">{{ range .Routes }}{{ .Method }} {{ .Path }}<br>{{ end }}</span></div>
+  {{ end }}
+</div>
+{{ end }}
 
 {{ range .Dims }}
 <div class="dim">
@@ -48,5 +85,7 @@
 </div>
 {{ end }}
 <div class="footer">由 revy 生成 · 策略即代码的项目体检台</div>
+<script>{{ .MermaidJS }}</script>
+<script>mermaid.initialize({ startOnLoad: true, theme: "dark" });</script>
 </body>
 </html>

@@ -32,14 +32,23 @@ type CheckResult struct {
 }
 
 type GoFacts struct {
-	Found       bool        `json:"found"`
-	GoVersion   string      `json:"go_version,omitempty"`
-	Build       CheckResult `json:"build"`
-	Vet         CheckResult `json:"vet"`
-	Test        CheckResult `json:"test"`
-	Fmt         FmtFacts    `json:"fmt"`
-	Lint        CheckResult `json:"lint"`
-	ImportGraph ImportGraph `json:"import_graph"`
+	Found       bool         `json:"found"`
+	GoVersion   string       `json:"go_version,omitempty"`
+	Build       CheckResult  `json:"build"`
+	Vet         CheckResult  `json:"vet"`
+	Test        CheckResult  `json:"test"`
+	Fmt         FmtFacts     `json:"fmt"`
+	Lint        CheckResult  `json:"lint"`
+	ImportGraph ImportGraph  `json:"import_graph"`
+	Routes      []RouteFacts `json:"routes"`
+}
+
+// RouteFacts 从 Go 源码扫描到的 HTTP 路由注册（domain 为文件所在
+// internal/<第一段>/... 的归属）。
+type RouteFacts struct {
+	Domain string `json:"domain"`
+	Method string `json:"method"`
+	Path   string `json:"path"`
 }
 
 type FmtFacts struct {
@@ -62,6 +71,8 @@ type WebTSFacts struct {
 	Typecheck CheckResult `json:"typecheck"`
 	Lint      CheckResult `json:"lint"`
 	Test      CheckResult `json:"test"`
+	// APICalls 前端服务层扫描到的 API 调用路径（与后端路由表对照）。
+	APICalls []string `json:"api_calls"`
 }
 
 type FlutterFacts struct {

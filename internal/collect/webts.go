@@ -40,6 +40,8 @@ func WebTS(ctx context.Context, root string, cfg *config.Config, f *facts.Facts)
 	runScript("typecheck", &f.WebTS.Typecheck)
 	runScript("lint", &f.WebTS.Lint)
 	runScript("test", &f.WebTS.Test)
+
+	f.WebTS.APICalls = scanTSAPICalls(ctx, dir)
 }
 
 func findWebDir(root string) string {
