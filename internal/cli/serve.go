@@ -113,7 +113,7 @@ var serveCmd = &cobra.Command{
 				return
 			}
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			w.Write(data)
+			_, _ = w.Write(data)
 		})
 
 		// HTML 报告文件服务

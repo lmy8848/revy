@@ -12,7 +12,6 @@ import (
 // 节点按 internal/ 第一段分层（domain/infra/api/feature...），
 // 同层多子包合并为一个节点显示（保持图可读）。
 func MermaidGraph(f facts.Facts) string {
-	type node struct{ pkg, layer string }
 	nodes := map[string]string{} // segment -> layer
 	edges := map[string][]string{}
 

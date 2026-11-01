@@ -7,7 +7,7 @@ policies:
   - id: ci-master-latest-success
     dimension: ci
     severity: error
-    expr: "facts['github']['found'] == false || facts['github']['actions']['latest']['conclusion'] == 'success'"
+    expr: "facts['github']['found'] == false || facts['github']['actions']['recent_total'] == 0 || facts['github']['actions']['latest']['conclusion'] == 'success'"
     message: "默认分支最新 CI 未通过——合并前保持主干绿色是最高标准的底线"
 
   - id: ci-recent-success-ratio

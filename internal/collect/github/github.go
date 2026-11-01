@@ -91,6 +91,10 @@ func (c *Collector) LatestRuns(ctx context.Context, branch string, total int) ([
 	}
 	path := fmt.Sprintf("/repos/%s/actions/runs?branch=%s&per_page=%d", c.Repo, branch, total)
 	if err := c.get(ctx, path, &resp); err != nil {
+		// 404：仓库无任何工作流运行，或令牌缺 Actions 读权限——按无数据
+		if strings.Contains(err.Error(), "404") {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return resp.WorkflowRuns, nil
