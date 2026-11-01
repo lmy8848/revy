@@ -57,7 +57,7 @@ func runReview(cmd *cobra.Command, args []string) error {
 
 	artifact, err := RunReviewFor(root, strict)
 	if err != nil {
-		return err
+		return err // 真运行错误（采集失败/策略加载失败）
 	}
 
 	run := artifactToRun(artifact)
@@ -73,7 +73,7 @@ func runReview(cmd *cobra.Command, args []string) error {
 	}
 
 	if artifact.Fail > 0 {
-		return errExitFail
+		return ErrExitFail
 	}
 	return nil
 }
@@ -200,9 +200,7 @@ func RunReviewFor(root string, strict bool) (runResult, error) {
 		}
 	}
 
-	if artifact.Fail > 0 {
-		return artifact, errExitFail
-	}
+	// 策略失败不是运行错误：工件照常返回，由调用方决定退出码
 	return artifact, nil
 }
 
@@ -291,9 +289,6 @@ func suppressSet(ids []string) map[string]struct{} {
 	}
 	return m
 }
-
-// errExitFail 存在 fail（退出码 1）；运行错误由 cobra 返回 error（退出码 2）。
-var errExitFail = fmt.Errorf("存在未通过的策略")
 
 func fileExists(path string) bool {
 	_, err := os.Stat(path)

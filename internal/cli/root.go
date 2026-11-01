@@ -2,12 +2,14 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"revy/internal/policy"
+	"strings"
 )
 
 var version = "dev"
@@ -21,10 +23,19 @@ var rootCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-func Execute() {
+// ErrExitFail 存在未通过的策略（退出码 1）。
+var ErrExitFail = errors.New("存在未通过的策略")
+
+// Execute 执行根命令。返回 ErrExitFail 表示策略失败（退出码 1），
+// 其它错误为运行错误（退出码 2）。
+func Execute() error {
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(2)
+		if strings.Contains(err.Error(), ErrExitFail.Error()) {
+			return ErrExitFail
+		}
+		return err
 	}
+	return nil
 }
 
 func init() {
