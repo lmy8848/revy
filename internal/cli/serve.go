@@ -41,7 +41,7 @@ var serveCmd = &cobra.Command{
 		// 仪表盘页面
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprint(w, serveIndex)
+			_, _ = fmt.Fprint(w, serveIndex)
 		})
 
 		// 触发审查（同步，前端 loading 态）
