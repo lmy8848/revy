@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"revy/internal/cli"
+	"revy/internal/review"
 )
 
 // App 是桌面端暴露给前端（Wails 绑定）的方法集合。
@@ -21,8 +21,8 @@ func NewApp() *App { return &App{} }
 func (a *App) Startup(ctx context.Context) { a.ctx = ctx }
 
 // RunReview 执行完整审查并返回结果（同步，可能耗时数分钟）。
-func (a *App) RunReview(root string, strict bool) (cli.ReviewResult, error) {
-	return cli.RunReviewFor(root, strict)
+func (a *App) RunReview(root string, strict bool) (review.ReviewResult, error) {
+	return review.Run(root, review.Options{Strict: strict})
 }
 
 // ListRuns 列出项目的历史审查工件。
