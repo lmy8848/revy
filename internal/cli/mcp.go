@@ -15,6 +15,7 @@ import (
 	"revy/internal/collect"
 	"revy/internal/config"
 	"revy/internal/facts"
+	"revy/internal/review"
 )
 
 // mcpCmd 以 stdio 运行 MCP 服务器：智能体（ZCode/Claude/Cursor 等）可把
@@ -89,7 +90,7 @@ func mcpReview(ctx context.Context, req *mcp.CallToolRequest, in mcpReviewIn) (*
 	if in.Root == "" {
 		return nil, nil, fmt.Errorf("root 不能为空")
 	}
-	artifact, err := RunReviewFor(in.Root, in.Strict)
+	artifact, err := review.Run(in.Root, review.Options{Strict: in.Strict})
 	if err != nil && artifact.Pass == 0 && artifact.Fail == 0 {
 		return nil, nil, err // 真运行错误
 	}

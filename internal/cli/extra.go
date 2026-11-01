@@ -131,6 +131,19 @@ var baselineUpdateCmd = &cobra.Command{
 	},
 }
 
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil && !os.IsNotExist(err)
+}
+
+// toMap 把 facts 转为 CEL 可消费的 map（经 JSON 往返抹平类型）。
+func toMap(f facts.Facts) map[string]any {
+	data, _ := json.Marshal(f)
+	var m map[string]any
+	_ = json.Unmarshal(data, &m)
+	return m
+}
+
 // initCmd 初始化项目 .review 目录。
 var initCmd = &cobra.Command{
 	Use:   "init [path]",

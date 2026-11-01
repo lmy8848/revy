@@ -32,10 +32,22 @@ func (b Baseline) Suppress() map[string]struct{} {
 	return m
 }
 
+// Set 由 ID 列表构造豁免集合。
+func Set(ids []string) map[string]struct{} {
+	m := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		m[id] = struct{}{}
+	}
+	return m
+}
+
 // Save 把当前失败的策略 ID 写入基线（revy baseline update）。
 func Save(root string, failedIDs []string) error {
 	data, err := json.MarshalIndent(Baseline{Suppressed: failedIDs}, "", "  ")
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(root+"/.review", 0o755); err != nil {
 		return err
 	}
 	return os.WriteFile(root+"/.review/baseline.json", append(data, '\n'), 0o644)
