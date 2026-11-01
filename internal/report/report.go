@@ -53,7 +53,7 @@ func (r *Run) FailedIDs() []string {
 // Terminal 渲染彩色终端摘要。
 func Terminal(r *Run) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("\nrevy 审查报告 · %s · %s\n", r.ProjectRoot, r.StartedAt.Format("2006-01-02 15:04:05")))
+	fmt.Fprintf(&b, "\nrevy 审查报告 · %s · %s\n", r.ProjectRoot, r.StartedAt.Format("2006-01-02 15:04:05"))
 	b.WriteString(strings.Repeat("─", 62) + "\n")
 
 	pass, warn, fail := 0, 0, 0
