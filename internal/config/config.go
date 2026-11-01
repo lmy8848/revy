@@ -22,6 +22,19 @@ type GitHubConfig struct {
 type GoConfig struct {
 	// Env 构建环境覆盖，如 GOOS: linux（审查 Linux 目标项目时交叉构建）。
 	Env map[string]string `yaml:"env"`
+	// TestSSH 把 go test 派发到 Linux 远端执行（Windows 宿主无法运行
+	// Linux 二进制时使用；cross-platform 跳过的替代方案）。
+	TestSSH bool      `yaml:"test_ssh"`
+	SSH     SSHConfig `yaml:"ssh"`
+	// Modules 额外扫描的子模块目录（如 desktop）；缺省自动发现全部 go.mod。
+	Modules []string `yaml:"modules"`
+}
+
+// SSHConfig 远端执行器连接参数。
+type SSHConfig struct {
+	Host string `yaml:"host"` // user@host
+	Key  string `yaml:"key"`  // 私钥路径；空则用默认凭据
+	Dir  string `yaml:"dir"`  // 远端工作目录（项目将同步到其下）
 }
 
 type ChecksConfig struct {

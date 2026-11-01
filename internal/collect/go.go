@@ -13,8 +13,8 @@ import (
 	"revy/internal/facts"
 )
 
-// Go 适配器：build / vet / test / fmt / lint（golangci-lint，未安装则跳过）
-// + import 依赖图（架构策略的数据源）。
+// Go 适配器：多模块 build / vet / test / fmt / lint（golangci-lint，未安装则跳过）
+// + import 依赖图与路由表（架构策略的数据源）。
 func Go(ctx context.Context, root string, cfg *config.Config, f *facts.Facts) {
 	if !fileExists(filepath.Join(root, "go.mod")) {
 		return
@@ -26,32 +26,133 @@ func Go(ctx context.Context, root string, cfg *config.Config, f *facts.Facts) {
 	env := environ(cfg.Go.Env)
 	timeout := cfg.Timeout()
 
-	build := runCheck{Name: "go build", Cmd: "go", Args: []string{"build", "./..."}, Dir: root, Env: env, Timeout: timeout}
-	f.Go.Build.OK, _, f.Go.Build.Output, f.Go.Build.DurationMS = build.run(ctx)
+	// 多模块发现：根 go.mod + 子目录 go.mod（排除 vendor/node_modules/build 等）
+	modules := []string{root}
+	modules = append(modules, discoverModules(root)...)
 
-	vet := runCheck{Name: "go vet", Cmd: "go", Args: []string{"vet", "./..."}, Dir: root, Env: env, Timeout: timeout}
-	f.Go.Vet.OK, _, f.Go.Vet.Output, f.Go.Vet.DurationMS = vet.run(ctx)
+	// 每模块本地交叉 build/vet；汇总到单一 CheckResult（策略口径不变）
+	buildOK, vetOK := true, true
+	var buildOuts, vetOuts []string
+	for _, mod := range modules {
+		b := runCheck{Name: "go build", Cmd: "go", Args: []string{"build", "./..."}, Dir: mod, Env: env, Timeout: timeout}
+		ok, _, out, dur := b.run(ctx)
+		f.Go.Build.DurationMS += dur
+		if !ok {
+			buildOK = false
+			buildOuts = append(buildOuts, "["+filepath.Base(mod)+"]\n"+out)
+		}
+		vetOut, vetDur := vetRun(ctx, mod, env, timeout)
+		f.Go.Vet.DurationMS += vetDur
+		if vetOut != "" {
+			vetOK = false
+			vetOuts = append(vetOuts, "["+filepath.Base(mod)+"]\n"+vetOut)
+		}
+	}
+	f.Go.Build.OK = buildOK
+	f.Go.Build.Output = strings.Join(buildOuts, "\n")
+	f.Go.Vet.OK = vetOK
+	f.Go.Vet.Output = strings.Join(vetOuts, "\n")
 
-	// 目标平台与宿主不同（如 Windows 宿主审查 Linux 项目）时，
-	// go test 无法执行 Linux 二进制——显式跳过并标注，真 Linux 测试
-	// 交给 ci 采集器（权威）或 ssh/vm 执行器
-	targetGOOS := envValue(env, "GOOS")
-	if targetGOOS != "" && targetGOOS != goos() {
+	// fmt：逐模块检查
+	var driftAll []string
+	fmtOK := true
+	for _, mod := range modules {
+		d := gofmtDrift(ctx, mod)
+		if !d.OK {
+			fmtOK = false
+			driftAll = append(driftAll, d.Drift...)
+		}
+	}
+	f.Go.Fmt = facts.FmtFacts{OK: fmtOK, Drift: driftAll}
+
+	// test：三种模式——ssh 远端真实执行（最高标准）/ 本地同平台执行 / 跨平台显式跳过
+	switch {
+	case cfg.Go.TestSSH && cfg.Go.SSH.Host != "":
+		f.Go.Test = sshTest(ctx, modules, cfg, timeout)
+	case envValue(env, "GOOS") != "" && envValue(env, "GOOS") != goos():
 		f.Go.Test.OK = false
 		f.Go.Test.Skipped = true
-		f.Go.Test.SkipReason = "cross-platform: 目标平台 " + targetGOOS + " 与宿主不同，测试由 CI/远端执行器承接"
-	} else {
-		test := runCheck{Name: "go test", Cmd: "go", Args: []string{"test", "-count=1", "./..."}, Dir: root, Env: env, Timeout: timeout}
-		f.Go.Test.OK, _, f.Go.Test.Output, f.Go.Test.DurationMS = test.run(ctx)
+		f.Go.Test.SkipReason = "cross-platform: 目标平台与宿主不同，测试由 CI/远端执行器承接"
+	default:
+		var testOuts []string
+		testOK := true
+		for _, mod := range modules {
+			t := runCheck{Name: "go test", Cmd: "go", Args: []string{"test", "-count=1", "./..."}, Dir: mod, Env: env, Timeout: timeout}
+			ok, _, out, dur := t.run(ctx)
+			f.Go.Test.DurationMS += dur
+			if !ok {
+				testOK = false
+				testOuts = append(testOuts, "["+filepath.Base(mod)+"]\n"+out)
+			}
+		}
+		f.Go.Test.OK = testOK
+		f.Go.Test.Output = strings.Join(testOuts, "\n")
 	}
 
-	f.Go.Fmt = gofmtDrift(ctx, root)
-
+	// lint：golangci 在根模块跑一次（可选工具）
 	lint := runCheck{Name: "golangci-lint", Cmd: "golangci-lint", Args: []string{"run"}, Dir: root, Timeout: timeout}
 	f.Go.Lint.OK, f.Go.Lint.Skipped, f.Go.Lint.Output, f.Go.Lint.DurationMS = lint.run(ctx)
 
 	f.Go.ImportGraph = goImportGraph(ctx, root)
 	f.Go.Routes = scanGoRoutes(ctx, root)
+	for _, mod := range modules[1:] {
+		f.Go.Routes = append(f.Go.Routes, scanGoRoutes(ctx, mod)...)
+	}
+}
+
+func vetRun(ctx context.Context, mod string, env []string, timeout time.Duration) (string, int64) {
+	v := runCheck{Name: "go vet", Cmd: "go", Args: []string{"vet", "./..."}, Dir: mod, Env: env, Timeout: timeout}
+	ok, _, out, dur := v.run(ctx)
+	_ = ok
+	return out, dur
+}
+
+// sshTest 把各模块同步到 Linux 远端执行 go test（真实执行而非交叉跳过）。
+func sshTest(ctx context.Context, modules []string, cfg *config.Config, timeout time.Duration) facts.CheckResult {
+	res := facts.CheckResult{}
+	e := &SSHExecutor{Host: cfg.Go.SSH.Host, Key: cfg.Go.SSH.Key, Dir: cfg.Go.SSH.Dir}
+	var outs []string
+	ok := true
+	for _, mod := range modules {
+		remote, err := e.Sync(ctx, mod)
+		if err != nil {
+			res.Output = "同步到远端失败: " + err.Error()
+			res.OK = false
+			return res
+		}
+		cmd := "export PATH=$PATH:/usr/local/go/bin GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=auto && go test -count=1 ./... 2>&1 | tail -40"
+		out, err := e.Run(ctx, remote, cmd, timeout)
+		outs = append(outs, "["+filepath.Base(mod)+"]\n"+out)
+		if err != nil || strings.TrimSpace(out) == "" {
+			ok = false
+		}
+	}
+	res.OK = ok
+	res.Output = strings.Join(outs, "\n")
+	return res
+}
+
+// discoverModules 发现项目下的全部 go.mod（排除 .git/vendor/node_modules/build）。
+func discoverModules(root string) []string {
+	var mods []string
+	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil || !d.IsDir() {
+			return nil
+		}
+		switch d.Name() {
+		case ".git", "vendor", "node_modules", "build", ".review", "frontend":
+			return filepath.SkipDir
+		}
+		if path == root {
+			return nil
+		}
+		if fileExists(filepath.Join(path, "go.mod")) {
+			mods = append(mods, path)
+			return filepath.SkipDir
+		}
+		return nil
+	})
+	return mods
 }
 
 func gofmtDrift(ctx context.Context, root string) facts.FmtFacts {
