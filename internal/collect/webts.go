@@ -37,6 +37,18 @@ func WebTS(ctx context.Context, root string, cfg *config.Config, f *facts.Facts)
 		}
 		res.OK, res.Skipped, res.Output, res.DurationMS = rc.run(ctx)
 	}
+	// node_modules 未安装时全部跳过：环境未准备不算项目缺陷
+	if !dirExists(filepath.Join(dir, "node_modules")) {
+		reason := "node_modules 未安装（先在 " + dir + " 执行 npm/pnpm install）"
+		for _, res := range []*facts.CheckResult{&f.WebTS.Typecheck, &f.WebTS.Lint, &f.WebTS.Test} {
+			res.OK = false
+			res.Skipped = true
+			res.SkipReason = reason
+		}
+		f.WebTS.APICalls = scanTSAPICalls(ctx, dir)
+		return
+	}
+
 	runScript("typecheck", &f.WebTS.Typecheck)
 	runScript("lint", &f.WebTS.Lint)
 	runScript("test", &f.WebTS.Test)

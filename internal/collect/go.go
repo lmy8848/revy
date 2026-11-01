@@ -53,17 +53,9 @@ func Go(ctx context.Context, root string, cfg *config.Config, f *facts.Facts) {
 	f.Go.Vet.OK = vetOK
 	f.Go.Vet.Output = strings.Join(vetOuts, "\n")
 
-	// fmt：逐模块检查
-	var driftAll []string
-	fmtOK := true
-	for _, mod := range modules {
-		d := gofmtDrift(ctx, mod)
-		if !d.OK {
-			fmtOK = false
-			driftAll = append(driftAll, d.Drift...)
-		}
-	}
-	f.Go.Fmt = facts.FmtFacts{OK: fmtOK, Drift: driftAll}
+	// fmt：gofmt 是语言级检查，根目录扫描已覆盖全部子模块目录
+	//（逐模块扫描会因目录重叠产生重复条目）
+	f.Go.Fmt = gofmtDrift(ctx, root)
 
 	// test：三种模式——ssh 远端真实执行（最高标准）/ 本地同平台执行 / 跨平台显式跳过
 	switch {
