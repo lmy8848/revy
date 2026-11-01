@@ -1,3 +1,7 @@
 .review/
 desktop/build/
 desktop/*.exe
+*.exe
+nul
+mcp_err.txt
+self_out.txt
