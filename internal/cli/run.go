@@ -47,6 +47,7 @@ type runResult struct {
 	BaselineUsed []string        `json:"baseline_used,omitempty"`
 	Trend        report.Trend    `json:"trend,omitempty"`
 	ArtifactPath string          `json:"artifact_path,omitempty"`
+	ReportPath   string          `json:"report_path,omitempty"`
 }
 
 func runReview(cmd *cobra.Command, args []string) error {
@@ -66,16 +67,8 @@ func runReview(cmd *cobra.Command, args []string) error {
 	default:
 		fmt.Print(report.Terminal(&run))
 		fmt.Printf("  工件: %s\n", artifact.ArtifactPath)
-		if html, err := report.HTMLWithTrend(&run, artifact.Trend.New, artifact.Trend.Resolved); err == nil {
-			outDir := runOutDir
-			if outDir == "" {
-				outDir = filepath.Join(root, ".review", "reports")
-			}
-			_ = os.MkdirAll(outDir, 0o755)
-			htmlPath := filepath.Join(outDir, "report-"+time.Now().Format("20060102-150405")+".html")
-			if werr := os.WriteFile(htmlPath, []byte(html), 0o644); werr == nil {
-				fmt.Printf("  HTML 报告: %s\n", htmlPath)
-			}
+		if artifact.ReportPath != "" {
+			fmt.Printf("  HTML 报告: %s\n", artifact.ReportPath)
 		}
 	}
 
@@ -195,6 +188,16 @@ func RunReviewFor(root string, strict bool) (runResult, error) {
 	artifact.ArtifactPath = filepath.Join(runsDir, "run-"+start.Format("20060102-150405")+".json")
 	if data, aerr := json.MarshalIndent(artifact, "", "  "); aerr == nil {
 		_ = os.WriteFile(artifact.ArtifactPath, data, 0o644)
+	}
+
+	// HTML 报告（serve/桌面端/CLI 统一在此生成）
+	reportsDir := filepath.Join(root, ".review", "reports")
+	_ = os.MkdirAll(reportsDir, 0o755)
+	if html, herr := report.HTMLWithTrend(&run, artifact.Trend.New, artifact.Trend.Resolved); herr == nil {
+		artifact.ReportPath = filepath.Join(reportsDir, "report-"+start.Format("20060102-150405")+".html")
+		if werr := os.WriteFile(artifact.ReportPath, []byte(html), 0o644); werr != nil {
+			artifact.ReportPath = ""
+		}
 	}
 
 	if artifact.Fail > 0 {

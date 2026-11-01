@@ -90,7 +90,7 @@ async function runReview() {
     if (d.error) { alert('运行错误: ' + d.error); return; }
     render(d);
     loadRuns();
-    document.getElementById('report').src = '/report/' + d.artifact_path.split(/[\\/]/).pop().replace('run-', 'report-');
+    document.getElementById('report').src = '/report/' + (d.report_path || '').split(/[\\/]/).pop();
   } finally {
     btn.disabled = false; btn.textContent = '运行审查';
   }
